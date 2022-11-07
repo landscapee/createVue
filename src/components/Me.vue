@@ -1,39 +1,104 @@
 <template>
-  <div>
-    <h1>Suporka</h1>
-    <h2>Front-End engineer</h2>
-    <h3>Graduated from South China Agricultural University</h3>
-    <h3>Expert in javascript react vue weapp and so on!</h3>
-    <h3>The following are the details:</h3>
-    <p class="link">
-      <a href="https://juejin.im/user/5af17df4518825672a02e1f5">Juejin</a>
-      <a href="https://blog.csdn.net/weixin_38788347">CSDN</a>
-      <a href="https://github.com/zxpsuper">Github</a>
-      <a href="https://zxpsuper.github.io/">Blog</a>
-    </p>
-    <p>You have stay here for {{ count }} seconds!</p>
+  <div class="peer">
+
+    <video ref="video" style="height: 100px;height:200px; "></video>
+
   </div>
 </template>
-<script lang="ts">
-import { defineComponent, computed } from 'vue'
-import { useStore } from 'vuex'
+<script>
+import Peer from "simple-peer";
 
-export default defineComponent({
-  name: 'AboutMe',
-  setup() {
-    const store = useStore()
-    const count = computed(() => store.state.count)
-    return { count }
+export default {
+  name: "App",
+  data() {
+
+    return {
+      socket: null,
+      peer1: null,
+      peer2: null,
+    }
   },
-})
-</script>
-<style scoped lang="less">
-a {
-  color: #42b983;
-}
+  components: {},
+  methods: {
 
-.link a {
-  display: inline-block;
-  margin: 0 20px;
+    open() {
+      const socket = new WebSocket('wss://localhost:3000');
+      this.socket = socket
+      socket.addEventListener('open',   (event)=> {
+
+      });
+      socket.addEventListener('message', (event) => {
+
+        let stream = JSON.parse(event.data)
+        console.log('.....',stream);
+
+        if(stream&&stream.type=="candidate"){
+          this.peer1.addStream( stream)
+          this.peer1.signal(stream)
+        }
+      });
+      socket.addEventListener('close', function (event) {
+        console.log('close ', event);
+      });
+      socket.addEventListener('error', function (event) {
+        console.log('error ', event);
+      });
+
+      addEventListener('beforeunload', (d) => {
+        socket.close()
+      })
+
+
+
+    },
+    close() {
+      if (this.socket) {
+        this.socket.close()
+      }
+    },
+    closeMedia() {
+      this.peer1.removeStream()
+    },
+
+    openMedia(stream){
+
+      this.peer1 = new Peer({initiator: true})
+      this.peer2 = new Peer()
+      this.peer1.on('signal', data => {
+        console.log('peer1   signal');
+        this.peer2.signal(data)
+        this.socket.send(JSON.stringify(data))
+      })
+      this.peer2.on('signal', data => {
+        console.log('peer2   signal');
+        this.peer1.signal(data)
+      })
+      this.peer2.on('stream', stream => {
+        console.log('peer2   stream');
+        let video = document.querySelector('video')
+        if ('srcObject' in video) {
+          video.srcObject = stream
+        } else {
+          video.src = window.URL.createObjectURL(stream) // for older browsers
+        }
+        video.play()
+      })
+    }
+  },
+  mounted() {
+    this.open()
+    this.openMedia()
+  },
+  beforeUnmount() {
+    this.peer1.destroy()
+    this.peer2.destroy()
+  }
+
 }
+</script>
+<style lang="scss">
+
+</style>
+<style lang="scss" scoped>
+
 </style>
